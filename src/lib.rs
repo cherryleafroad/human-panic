@@ -89,50 +89,51 @@ macro_rules! debug_param {
 /// ```
 #[macro_export]
 macro_rules! setup_panic_logger {
-  ($log_file:expr) => {
-    use std::panic::{self, PanicInfo};
-    use std::fs::OpenOptions;
-    use $crate::{format_panic, print_msg, Metadata, debug_param};
-    use $crate::simplelog::*;
+    ($log_file:expr $(, $opt:expr)*) => {
+        use std::panic::{self, PanicInfo};
+        use std::fs::OpenOptions;
+        use $crate::{format_panic, print_msg, Metadata, debug_param};
+        use $crate::simplelog::*;
 
-    CombinedLogger::init(
-        vec![
-            WriteLogger::new(
-                debug_param!(LevelFilter::Debug, LevelFilter::Info),
-                Config::default(),
-                OpenOptions::new()
-                    .read(true)
-                    .append(true)
-                    .create(true)
-                    .open(&$log_file).unwrap()),
-        ]
-    ).unwrap();
+        CombinedLogger::init(
+            vec![
+                WriteLogger::new(
+                    debug_param!(LevelFilter::Debug, LevelFilter::Info),
+                    Config::default(),
+                    OpenOptions::new()
+                        .read(true)
+                        .append(true)
+                        .create(true)
+                        .open(&$log_file).unwrap()),
+                $($opt),*
+            ]
+        ).unwrap();
 
-    let meta = $crate::Metadata {
-        version: env!("CARGO_PKG_VERSION").into(),
-        name: env!("CARGO_PKG_NAME").into(),
-        authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
-        homepage: env!("CARGO_PKG_HOMEPAGE").into(),
+        let meta = $crate::Metadata {
+            version: env!("CARGO_PKG_VERSION").into(),
+            name: env!("CARGO_PKG_NAME").into(),
+            authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
+            homepage: env!("CARGO_PKG_HOMEPAGE").into(),
+        };
+
+        let default_hook = panic::take_hook();
+
+        if let Err(_) = ::std::env::var("RUST_BACKTRACE") {
+            panic::set_hook(Box::new(move |info: &panic::PanicInfo| {
+                // call standard hook in debug mode
+                #[cfg(debug_assertions)]
+                default_hook(info);
+
+                // output panic to logfile
+                error!("Panic! :: {}", format_panic(info));
+
+                // do human error message in release mode
+                #[cfg(not(debug_assertions))]
+                $crate::print_msg(&$log_file, &meta)
+                    .expect("human-panic-logger: printing error message to console failed");
+            }));
+        }
     };
-
-    let default_hook = panic::take_hook();
-
-    if let Err(_) = ::std::env::var("RUST_BACKTRACE") {
-        panic::set_hook(Box::new(move |info: &panic::PanicInfo| {
-            // call standard hook in debug mode
-            #[cfg(debug_assertions)]
-            default_hook(info);
-
-            // output panic to logfile
-            error!("Panic! :: {}", format_panic(info));
-
-            // do human error message in release mode
-            #[cfg(not(debug_assertions))]
-            $crate::print_msg(&$log_file, &meta)
-                .expect("human-panic-logger: printing error message to console failed");
-        }));
-    }
-  };
 }
 
 /// Utility function that prints a message to our human users
