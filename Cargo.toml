@@ -1,5 +1,5 @@
 [package]
-name = "human-panic"
+name = "human-panic-logger"
 version = "1.0.3"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yoshuawuyts/human-panic"
@@ -17,18 +17,9 @@ features = ["nightly"]
 
 [dependencies]
 termcolor = "1.0.4"
-uuid = { version = "0.8.0", features = ["v4"], default-features = false }
-serde_derive = "1.0.79"
-toml = "0.5.0"
-serde = "1.0.79"
-os_type = "2.2.0"
 backtrace = "0.3.9"
+log = "0.4.14"
+simplelog = "0.10.0"
 
 [features]
 nightly = []
-
-[workspace]
-members = [
-  "tests/single-panic",
-  "tests/custom-panic",
-]
