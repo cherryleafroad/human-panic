@@ -41,17 +41,18 @@
 //! Thank you kindly!
 
 #![cfg_attr(feature = "nightly", deny(missing_docs))]
-#![cfg_attr(feature = "nightly", feature(external_doc))]
 #![cfg_attr(feature = "nightly", feature(panic_info_message))]
 
 use std::borrow::Cow;
 use std::io::{Result as IoResult, Write};
 use std::panic::PanicInfo;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 use backtrace::Backtrace;
 use core::mem;
 use std::fmt::Write as WriteFmt;
+
+pub use simplelog;
 
 /// A convenient metadata struct that describes a crate
 pub struct Metadata {
@@ -77,31 +78,22 @@ macro_rules! debug_param {
     };
 }
 
-/// `human-panic` initialisation macro
+/// `human-panic-logger` initialisation macro
 ///
-/// You can either call this macro with no arguments `setup_panic!()` or
-/// with a Metadata struct, if you don't want the error message to display
-/// the values used in your `Cargo.toml` file.
-///
-/// The Metadata struct can't implement `Default` because of orphan rules, which
-/// means you need to provide all fields for initialisation.
+/// Call this with your log file location
 ///
 /// ```
-/// use human_panic::setup_human_panic_logger;
+/// use human_panic_logger::setup_panic_logger;
 ///
-/// setup_human_panic_logger!(Metadata {
-///     name: env!("CARGO_PKG_NAME").into(),
-///     version: env!("CARGO_PKG_VERSION").into(),
-///     authors: "My Company Support <support@mycompany.com>".into(),
-///     homepage: "support.mycompany.com".into(),
-/// });
+/// setup_panic_logger!("myloglocation.log");
 /// ```
 #[macro_export]
-macro_rules! setup_human_panic_logger {
+macro_rules! setup_panic_logger {
   ($log_file:expr) => {
     use std::panic::{self, PanicInfo};
+    use std::fs::OpenOptions;
     use $crate::{format_panic, print_msg, Metadata, debug_param};
-    use simplelog::*;
+    use $crate::simplelog::*;
 
     CombinedLogger::init(
         vec![
@@ -116,7 +108,7 @@ macro_rules! setup_human_panic_logger {
         ]
     ).unwrap();
 
-    let meta = human_panic_logger::Metadata {
+    let meta = $crate::Metadata {
         version: env!("CARGO_PKG_VERSION").into(),
         name: env!("CARGO_PKG_NAME").into(),
         authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
@@ -136,7 +128,7 @@ macro_rules! setup_human_panic_logger {
 
             // do human error message in release mode
             #[cfg(not(debug_assertions))]
-            human_panic::print_msg($log, &meta)
+            $crate::print_msg(&$log_file, &meta)
                 .expect("human-panic-logger: printing error message to console failed");
         }));
     }
@@ -167,7 +159,7 @@ pub fn print_msg<P: AsRef<Path>>(
         "There is a log file of the crash at \"{}\". Please submit an \
      issue or email with the subject of \"{} Crash Report\" and include the \
      log as an attachment.\n",
-        fp.as_ref().display(),
+        file_path.as_ref().display(),
         name
     )?;
 
@@ -231,7 +223,7 @@ fn format_backtrace() -> String {
     //(including closure that we set as hook)
     //Then we skip 2 functions from Rust's runtime
     //that calls panic hook
-    const SKIP_FRAMES_NUM: usize = 8;
+    const SKIP_FRAMES_NUM: usize = 4;
     //We take padding for address and extra two letters
     //to padd after index.
     const HEX_WIDTH: usize = mem::size_of::<usize>() + 2;
@@ -288,5 +280,5 @@ fn format_backtrace() -> String {
         }
     }
 
-    backtrace
+    format!("\nstack backtrace:{}", backtrace)
 }
